@@ -57,6 +57,6 @@ class ADMMetadatos:
 
         return atributos
     
-    def obten_tabal_bloques(self):
+    def obten_tabla_bloques(self):
         return self.tabla_bloques
     

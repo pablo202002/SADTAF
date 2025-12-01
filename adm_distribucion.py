@@ -56,16 +56,22 @@ class ADMDistribucion:
 
     def _lee_bloque_desde_nodo(self, id_nodo, id_bloque):
         if id_nodo == self.id_nodo:
-            self.manejador_bloque.liberar_bloque(id_bloque)
-            self.manejador_almacenamiento.eliminar_bloque(id_bloque)
-            return
+            info = self.manejador_almacenamiento.lee_bloque(id_bloque)
+            return info
         
+
         mensaje = {
             "tipo": "LEER_BLOQUE",
             "id_bloque": id_bloque
         }
 
-        self.comunicacion.enviar(id_nodo, mensaje)
+        respuesta = self.comunicacion.envia_recibe_json(
+            self.manejador_nodo.cluster_nodos[id_nodo]["host"],
+            self.manejador_nodo.cluster_nodos[id_nodo]["puerto"],
+            mensaje
+        )
+
+        return respuesta
 
 
     def eliminar_bloque(self, id_nodo, id_bloque):

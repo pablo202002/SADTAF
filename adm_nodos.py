@@ -67,5 +67,5 @@ class ADMNodos:
         if id_nodo not in self.cluster_nodos:
             return
         
-        self.nodos_activos(id_nodo)
+        self.nodos_activos.add(id_nodo)
         self.ultimo_pulso[id_nodo] = time.time()

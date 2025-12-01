@@ -19,7 +19,7 @@ def carga_configuracion(ruta_config):
 def obten_IP_local():
     hostname = socket.gethostname()
 
-    return socket.gethostname(hostname)
+    return socket.gethostbyname(hostname)
 
 
 def envia_json(conexion_socket, data):

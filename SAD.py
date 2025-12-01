@@ -143,7 +143,7 @@ class SAD:
         return self.adm_metadatos.obten_atributos_archivos(nombre_archivo)
     
     def obten_tabla_bloques(self):
-        return self.adm_metadatos.obten_tabal_bloques() #CAMBIAR NOMBRE DE FUNCION
+        return self.adm_metadatos.obten_tabla_bloques()
 
     def _maneja_mensaje(self, mensaje):
         tipo_mensaje = mensaje.get("tipo")
@@ -165,7 +165,8 @@ class SAD:
             self.adm_lider.cuando_mensaje_eleccion(mensaje["emisor"])
 
         elif tipo_mensaje == "ANUNCIO_LIDER":
-            self.adm_lider.cuando_mensaje_eleccion(mensaje["id_lider"])
+            self.adm_lider.id_lider = mensaje["emisor"]
+            self.adm_lider.es_lider_flag = False
 
         elif tipo_mensaje == "SOLICITAR_TABLA_BLOQUES":
             bloques_libres = self.adm_bloque.obten_lista_bloques_libres()

@@ -27,7 +27,7 @@ class ADMArchivos:
     
 
     def rearma_archivos(self, fragmentos_ordenados):
-        tamaño_archivo = "b"
+        tamaño_archivo = bytearray()
         for fragmento in fragmentos_ordenados:
             tamaño_archivo += fragmento["info"]
         return tamaño_archivo

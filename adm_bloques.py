@@ -23,7 +23,7 @@ class ADMBloques:
         
     def liberar_bloque(self, id_bloque):
         if id_bloque in self.tabla_de_bloques:
-            self.tabla_de_bloques = "LIBRE"
+            self.tabla_de_bloques["id_bloque"] = "LIBRE"
 
     
     def obten_lista_bloques_libres(self):

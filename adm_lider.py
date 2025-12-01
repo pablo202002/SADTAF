@@ -65,7 +65,7 @@ class ADMLider:
         orden = []
 
         for id_nodo, info in self.cluster_nodos.items():
-            if id_nodo != self.cluster_nodos and info["prioridad"] > self.prioridad:
+            if id_nodo != self.id_nodo and info["prioridad"] > self.prioridad:
                 orden.append(id_nodo)
 
         return orden
