@@ -1,0 +1,49 @@
+{
+    "nodo": {
+        "id": "nodoA",
+        "host": "192.168.100.142",
+        "puerto": 5000
+    },
+
+    
+    "red":{
+        "host": "192.168.100.142",
+        "puerto": 5000
+    },
+
+
+    "cluster": {
+        "intervalo_pulso": 2,
+        "tiempo_espera_pulso": 6,
+        "nodos": {
+        "nodoA": { "host": "192.168.100.142", "puerto": 5000, "prioridad": 1 },
+        "nodoB": { "host": "192.168.100.148", "puerto": 5001, "prioridad": 2 }
+        }
+    },
+
+
+    "almacenamiento": {
+        "ruta_SS": "C:\\Users\\Pamblo\\OneDrive\\Documentos\\Uni\\7Semestre\\Sistemas Operativos\\SADTAF\\SharedSpace",
+        "tamanio_SS_Mb": 100,
+        "tamanio_bloque_bytes": 1048576
+    },
+
+
+    "copias":{
+        "numbero_de_copias": 2
+    },
+
+
+    "pulso":{
+        "intervalo_ms":2000,
+        "tiempo_espera":6000,
+        "umbral_fallas":3
+    },
+
+
+    "eleccion":{
+        "metodo": "bully",
+        "prioridad":1
+    }
+
+}
