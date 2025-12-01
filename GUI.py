@@ -2,6 +2,8 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 from tkinter import ttk, Toplevel
 
+import os
+
 
 class GUI:
     """
@@ -80,7 +82,11 @@ class GUI:
             messagebox.showwarning("Aviso", "Selecciona un archivo")
             return
 
-        save_path = filedialog.asksaveasfilename(initialfile=filename)
+        save_path = filedialog.asksaveasfilename(
+            initialfile=filename,
+            defaultextension=os.path.splitext(filename)[1],  # fuerza la extensión original
+            filetypes=[("Todos los archivos", "*.*")]
+        )
         if save_path:
             try:
                 self.SAD.descargar_archivo(filename, save_path)

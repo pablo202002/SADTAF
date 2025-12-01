@@ -115,19 +115,31 @@ class SAD:
 
 
     def descargar_archivo(self, nombre_archivo, ruta_guardado):
+
         metadato_fragmento = self.adm_metadatos.obten_archivo(nombre_archivo)
         if not metadato_fragmento:
-            raise Exception("No existe el archivo")
+            raise Exception(f"No existe el archivo '{nombre_archivo}' en el sistema distribuido")
         
-        fragmentos = []
+        fragmentos_bytes = []
 
+        # Leer cada fragmento desde el nodo correspondiente
         for fragmento in sorted(metadato_fragmento, key=lambda x: x["id_fragmento"]):
-            info = self.adm_distribucion._lee_bloque_desde_nodo(fragmento["id_nodo"], fragmento["id_bloque"])
+            info = self.adm_distribucion._lee_bloque_desde_nodo(
+                fragmento["id_nodo"], 
+                fragmento["id_bloque"]
+            )
+            if info is None:
+                raise Exception(f"No se pudo leer el fragmento {fragmento['id_fragmento']} del nodo {fragmento['id_nodo']}")
+            fragmentos_bytes.append(info)
 
-            fragmentos.append({
-                "id_fragmento": fragmento["id_fragmento"],
-                "info": info
-            })
+        # Reensamblar los fragmentos en bytes completos
+        archivo_completo = b"".join(fragmentos_bytes)
+
+        # Guardar en disco con la ruta proporcionada
+        with open(ruta_guardado, "wb") as f:
+            f.write(archivo_completo)
+
+        print(f"Archivo '{nombre_archivo}' descargado correctamente en: {ruta_guardado}")
 
     def eliminar_archivo(self, nombre_archivo):
         fragmentos = self.adm_metadatos.eliminar_archivo(nombre_archivo)
