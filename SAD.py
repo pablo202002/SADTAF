@@ -115,7 +115,7 @@ class SAD:
 
 
     def descargar_archivo(self, nombre_archivo, ruta_guardado):
-
+#chtumadren=daniel
         metadato_fragmento = self.adm_metadatos.obten_archivo(nombre_archivo)
         if not metadato_fragmento:
             raise Exception(f"No existe el archivo '{nombre_archivo}' en el sistema distribuido")
