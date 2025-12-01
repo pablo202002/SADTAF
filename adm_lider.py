@@ -24,7 +24,10 @@ class ADMLider:
 
     
     def iniciar_eleccion(self):
-        nodos_prioritarios = self._nodos_prioritarios()
+        nodos_prioritarios = [
+            id_nodo for id_nodo in self._nodos_prioritarios()
+            if self.cluster_nodos[id_nodo] and id_nodo in self.manejador_nodos.obten_nodos_activos()
+        ]
 
         if not nodos_prioritarios:
             self._convertir_lider()
@@ -35,9 +38,12 @@ class ADMLider:
         for id_nodo in nodos_prioritarios:
             if id_nodo == self.id_nodo:
                 continue
+            try:
+                if self.p2p.envia_eleccion(id_nodo):
+                    respuestas += 1
 
-            if self.p2p.envia_eleccion(id_nodo):
-                respuestas += 1
+            except Exception:
+                continue
 
         if respuestas == 0:
             self._convertir_lider()

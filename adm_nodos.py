@@ -27,6 +27,9 @@ class ADMNodos:
         if id_nodo not in self.cluster_nodos:
             return
         
+        if id_nodo not in self.nodos_activos:
+            print(f"[] Nodo '{id_nodo}' se ha conectado al cluster")
+            
         self.ultimo_pulso[id_nodo] = time.time()
         self.nodos_activos.add(id_nodo)
 
