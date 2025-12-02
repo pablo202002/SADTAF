@@ -184,87 +184,130 @@ class SAD:
         return self.adm_metadatos.obten_tabla_bloques()
 
     def _maneja_mensaje(self, mensaje):
-        tipo_mensaje = mensaje.get("tipo")
+        tipo = mensaje.get("tipo")
 
-        if tipo_mensaje == "PULSO":
-            print(f"[PULSO RECIBIDO] Nodo {mensaje['id_nodo']} se conectó con {self.id_nodo}")
+        if tipo == "PULSO":
             self.adm_nodos.pulso_recibido(mensaje["id_nodo"])
-
-        elif tipo_mensaje == "ALMACENAR_BLOQUE":
-            data_b64 = mensaje["data"]
-            data_bytes = base64.b64decode(data_b64)
-            self.adm_almacenamiento.escribe_bloque(mensaje["id_bloque"], data_bytes)
             return {"ok": True}
 
-        elif tipo_mensaje == "LEER_BLOQUE":
-            id_bloque = mensaje["id_bloque"]
-            print(f"[ALMACENAMIENTO] Leyendo bloque {id_bloque}")
+        elif tipo == "ALMACENAR_BLOQUE":
+            data = base64.b64decode(mensaje["data"])
+            self.adm_almacenamiento.escribe_bloque(mensaje["id_bloque"], data)
+            return {"ok": True}
 
-            data_bytes = self.adm_almacenamiento.lee_bloque(id_bloque)
+        elif tipo == "LEER_BLOQUE":
+            data = self.adm_almacenamiento.lee_bloque(mensaje["id_bloque"])
+            if data is None:
+                return {"error": "bloque inexistente"}
+            return base64.b64encode(data).decode("ascii")
 
-            if data_bytes:
-                # Convertir bytes → base64 → string JSON seguro
-                return base64.b64encode(data_bytes).decode("ascii")
-
-            return None
-        
-        elif tipo_mensaje == "ELIMINAR_BLOQUE":
+        elif tipo == "ELIMINAR_BLOQUE":
             self.adm_bloque.liberar_bloque(mensaje["id_bloque"])
             self.adm_almacenamiento.eliminar_bloque(mensaje["id_bloque"])
-
-        elif tipo_mensaje == "ELECCION_LIDER":
-            self.adm_lider.cuando_mensaje_eleccion(mensaje["emisor"])
-
-        elif tipo_mensaje == "ANUNCIO_LIDER":
-            self.adm_lider.id_lider = mensaje["emisor"]
-            self.adm_lider.es_lider_flag = False
-
-        elif tipo_mensaje == "SOLICITAR_TABLA_BLOQUES":
-            bloques_libres = self.adm_bloque.obten_lista_bloques_libres()
-            return bloques_libres
-        elif tipo_mensaje == "ANUNCIO_METADATO":
-            nombre = mensaje["nombre_archivo"]
-            entradas = mensaje["entradas"]
-            # agrega al metadato local (evita duplicados)
-            self.adm_metadatos.agrega_archivo(nombre, entradas)
             return {"ok": True}
+
+        elif tipo == "ASIGNAR_BLOQUE":
+            id_bloque = self.adm_bloque.asigna_bloques()
+
+            if id_bloque is None:
+                return None
+
+            return id_bloque
+
+
+        elif tipo == "ANUNCIO_METADATO":
+            self.adm_metadatos.agrega_archivo(
+                mensaje["nombre_archivo"],
+                mensaje["entradas"]
+            )
+            return {"ok": True}
+
+
+        elif tipo == "SOLICITAR_TABLA_BLOQUES":
+            tabla = {}
+
+            total = self.adm_bloque.total_bloques
+            libres = set(self.adm_bloque.obten_lista_bloques_libres())
+
+            for id_bloque in range(total):
+                clave = (self.id_nodo, id_bloque)
+
+                if id_bloque in libres:
+                    tabla[id_bloque] = {
+                        "estado": "LIBRE",
+                        "nombre_archivo": None,
+                        "id_fragmento": None
+                    }
+                else:
+                    info = self.adm_metadatos.tabla_bloques.get(clave)
+                    tabla[id_bloque] = info if info else {
+                        "estado": "OCUPADO",
+                        "nombre_archivo": "?",
+                        "id_fragmento": "?"
+                    }
+
+            return tabla
+
+
+        # ✅ ESTE ES EL FIX CLAVE
+        return {"ok": False, "error": "Tipo de mensaje no reconocido"}
+
 
 
     def obten_tabla_bloques_completa_cluster(self):
         tabla_completa = {}
 
+        # =========================
+        # 1. BLOQUES LOCALES OCUPADOS (metadatos)
+        # =========================
         for (id_nodo, id_bloque), info in self.adm_metadatos.tabla_bloques.items():
             tabla_completa[(id_nodo, id_bloque)] = info.copy()
 
+        # =========================
+        # 2. BLOQUES LOCALES LIBRES
+        # =========================
         for id_bloque in self.adm_bloque.obten_lista_bloques_libres():
-            llave = (self.id_nodo, id_bloque)
-            if llave not in tabla_completa:
-                tabla_completa[llave] = {
+            clave = (self.id_nodo, id_bloque)
+            if clave not in tabla_completa:
+                tabla_completa[clave] = {
                     "estado": "LIBRE",
-                    "nombre_archivo": None, 
+                    "nombre_archivo": None,
                     "id_fragmento": None
                 }
 
+        # =========================
+        # 3. BLOQUES DE NODOS REMOTOS
+        # =========================
         for id_nodo, info_nodo in self.adm_nodos.cluster_nodos.items():
             if id_nodo == self.id_nodo:
                 continue
 
             mensaje = {"tipo": "SOLICITAR_TABLA_BLOQUES"}
-            try:
-                respuesta = self.P2P.envia_y_recibe_json(info_nodo["host"], info_nodo["puerto"], mensaje)
 
-                for id_bloque in respuesta:
-                    llave = (id_nodo, id_bloque)
-                    if llave not in tabla_completa:
-                        tabla_completa[llave] = {
-                            "estado": "LIBRE",
-                            "nombre_archivo": None,
-                            "id_fragmento": None
-                        }
+            try:
+                respuesta = self.P2P.envia_y_recibe_json(
+                    info_nodo["host"],
+                    info_nodo["puerto"],
+                    mensaje
+                )
+
+                # ✅ respuesta DEBE ser dict {id_bloque: info}
+                if not isinstance(respuesta, dict):
+                    continue
+
+                for id_bloque, info in respuesta.items():
+                    clave = (id_nodo, id_bloque)
+                    tabla_completa[clave] = {
+                        "estado": info.get("estado", "LIBRE"),
+                        "nombre_archivo": info.get("nombre_archivo"),
+                        "id_fragmento": info.get("id_fragmento")
+                    }
+
             except Exception:
                 continue
 
         return tabla_completa
+
 
 
     def es_lider(self):

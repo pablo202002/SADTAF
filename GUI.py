@@ -170,7 +170,16 @@ class GUI:
             tree.column(col, width=100, anchor="center")
 
         # Insertar datos
-        for (id_nodo, id_bloque), info in sorted(block_table.items()):
+        for (id_nodo, id_bloque), info in sorted(
+                block_table.items(),
+                key=lambda x: (str(x[0][0]), str(x[0][1]))
+            ):
+
+            # salto defensivo
+            if not isinstance(id_bloque, int):
+                continue
+
+
             tree.insert("", tk.END, values=(
                 id_nodo,
                 id_bloque,

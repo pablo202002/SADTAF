@@ -33,25 +33,21 @@ def envia_json(conexion, mensaje_dict):
 
 
 def recibe_json(conexion, tam_buffer=4096):
-    """
-    Recibe un JSON desde un socket.
-    Lee hasta encontrar '\n'.
-    """
     buffer = ""
 
     while True:
         chunk = conexion.recv(tam_buffer)
         if not chunk:
-            break
+            if buffer.strip():
+                return json.loads(buffer)
+            raise Exception("Conexión cerrada sin datos")
 
         buffer += chunk.decode("utf-8")
 
-        # Si ya llegó una línea completa
         if "\n" in buffer:
-            linea = buffer.split("\n")[0]  # solo la primera
+            linea = buffer.split("\n")[0]
             return json.loads(linea)
 
-    raise Exception("No llegó JSON completo. Falta '\\n'")
 
 
 #Funciones auxiliares para achivos y data
