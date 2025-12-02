@@ -17,6 +17,12 @@ class GUI:
         self.root = tk.Tk()
         self.root.title("Distributed File System")
 
+        # permitir redimensionado y tamaño mínimo razonable
+        try:
+            self.root.minsize(480, 320)
+        except Exception:
+            pass
+
         self._build_ui()
 
     # =========================
@@ -24,22 +30,59 @@ class GUI:
     # =========================
 
     def _build_ui(self):
+        # Estilos y título superior
+        style = ttk.Style(self.root)
+        try:
+            style.theme_use('clam')
+        except Exception:
+            pass
+        style.configure('Title.TLabel', background='#0b5a8a', foreground='white', font=('Helvetica', 11, 'bold'))
+
+        title = ttk.Label(self.root, text='SADTF', style='Title.TLabel', anchor='center')
+        title.pack(fill='x')
+
         frame = tk.Frame(self.root, padx=10, pady=10)
-        frame.pack(fill="both", expand=False)
+        frame.pack(fill="both", expand=True)
 
-        # Lista de archivos
-        self.lista_archivos = tk.Listbox(frame, width=40)
-        self.lista_archivos.pack(fill="x")
+        # Título / label de lista de archivos
+        files_label = tk.Label(frame, text="Archivos en el sistema:", anchor="w")
+        files_label.pack(fill="x")
 
-        refresh_btn = tk.Button(frame, text="Actualizar archivos", command=self.recarga_archivos)
-        refresh_btn.pack(pady=5, fill="x")
+        # Contenedor para lista de archivos + scrollbar
+        files_frame = tk.Frame(frame)
+        files_frame.pack(fill="both", expand=True)
 
-        # Botones
-        tk.Button(frame, text="1) Subir archivo", command=self.upload_file).pack(fill="x")
-        tk.Button(frame, text="2) Descargar archivo", command=self.download_file).pack(fill="x")
-        tk.Button(frame, text="3) Eliminar archivo", command=self.delete_file).pack(fill="x")
-        tk.Button(frame, text="4) Atributos", command=self.show_attributes).pack(fill="x")
-        tk.Button(frame, text="5) Tabla de bloques", command=self.show_block_table).pack(fill="x")
+        self.lista_archivos = tk.Listbox(files_frame, width=40, height=12)
+        scroll_y = ttk.Scrollbar(files_frame, orient="vertical", command=self.lista_archivos.yview)
+        self.lista_archivos.configure(yscrollcommand=scroll_y.set)
+
+        self.lista_archivos.pack(side="left", fill="both", expand=True)
+        scroll_y.pack(side="right", fill="y")
+
+        # Botón de recarga (estilo ttk para apariencia consistente)
+        refresh_btn = ttk.Button(frame, text="Actualizar archivos", command=self.recarga_archivos)
+        refresh_btn.pack(pady=6, fill="x")
+
+        # Panel de botones de operaciones (alineados horizontalmente para mejor estética)
+        buttons_frame = tk.Frame(frame)
+        buttons_frame.pack(fill="x", pady=(8, 0))
+
+        left_btns = tk.Frame(buttons_frame)
+        left_btns.pack(side='left', fill='x', expand=True)
+        right_btns = tk.Frame(buttons_frame)
+        right_btns.pack(side='right')
+
+        ttk.Button(left_btns, text="Cargar", command=self.upload_file).pack(side='left', padx=4)
+        ttk.Button(left_btns, text="Atributos de archivo", command=self.show_attributes).pack(side='left', padx=4)
+        ttk.Button(left_btns, text="Tabla", command=self.show_block_table).pack(side='left', padx=4)
+
+        ttk.Button(right_btns, text="Descargar", command=self.download_file).pack(side='left', padx=4)
+        ttk.Button(right_btns, text="Eliminar", command=self.delete_file).pack(side='left', padx=4)
+
+        # Barra de estado simple que muestra número de archivos y mensajes cortos
+        self.status_var = tk.StringVar(value="Listo")
+        status_label = ttk.Label(self.root, textvariable=self.status_var, relief="sunken", anchor="w")
+        status_label.pack(fill="x", side="bottom")
 
     # =========================
     # GUI ACTIONS
@@ -55,6 +98,13 @@ class GUI:
 
         for f in files:
             self.lista_archivos.insert(tk.END, f)
+        # Actualizar barra de estado con el número de archivos
+        try:
+            count = len(files)
+            self.status_var.set(f"{count} archivo" + ("s" if count != 1 else ""))
+        except Exception:
+            # en caso de que status_var no exista o falle, simplemente ignorar
+            pass
 
     def get_selected_file(self):
         selection = self.lista_archivos.curselection()
@@ -164,69 +214,105 @@ class GUI:
         # Crear ventana nueva
         ventana = Toplevel(self.root)
         ventana.title("Tabla de Bloques")
-        ventana.geometry("700x450")
+        ventana.geometry("900x500")
 
-        # Frame contenedor para tree + scrollbar
-        frame_tabla = tk.Frame(ventana, padx=6, pady=6)
+        # Contenedor principal
+        frame_tabla = ttk.Frame(ventana, padding=6)
         frame_tabla.pack(fill="both", expand=True)
 
-        # Crear Treeview con columnas definidas
-        cols = ("Nodo", "Bloque", "Estado", "Archivo", "Fragmento")
-        tree = ttk.Treeview(frame_tabla, columns=cols, show="headings")
+        # Barra superior: búsqueda + expand/collapse
+        top_frame = ttk.Frame(frame_tabla)
+        top_frame.pack(fill='x', pady=(0,6))
 
-        # configurar columnas y encabezados
-        tree.heading("Nodo", text="Nodo")
-        tree.heading("Bloque", text="Bloque")
-        tree.heading("Estado", text="Estado")
-        tree.heading("Archivo", text="Archivo")
-        tree.heading("Fragmento", text="Fragmento")
+        search_var = tk.StringVar()
+        ttk.Label(top_frame, text='Buscar archivo:').pack(side='left', padx=(0,6))
+        search_entry = ttk.Entry(top_frame, textvariable=search_var)
+        search_entry.pack(side='left')
 
-        tree.column("Nodo", width=120, anchor="center")
-        tree.column("Bloque", width=80, anchor="center")
-        tree.column("Estado", width=100, anchor="center")
-        tree.column("Archivo", width=220, anchor="w")
-        tree.column("Fragmento", width=80, anchor="center")
+        def do_search():
+            q = search_var.get().lower().strip()
+            if not q:
+                return
+            for parent in tree.get_children(''):
+                name = tree.item(parent, 'text').lower()
+                if q in name:
+                    tree.see(parent)
+                    tree.selection_set(parent)
+                    tree.item(parent, open=True)
 
-        # Scrollbar vertical
-        scrollbar = ttk.Scrollbar(frame_tabla, orient="vertical", command=tree.yview)
-        tree.configure(yscrollcommand=scrollbar.set)
+        ttk.Button(top_frame, text='Buscar', command=do_search).pack(side='left', padx=6)
 
-        # layout: tree a la izquierda, scrollbar a la derecha
-        tree.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
+        btns_frame = ttk.Frame(top_frame)
+        btns_frame.pack(side='right')
 
-        # Normalizar e insertar datos ordenados
-        items = []
+        def expand_all():
+            for p in tree.get_children(''):
+                tree.item(p, open=True)
+
+        def collapse_all():
+            for p in tree.get_children(''):
+                tree.item(p, open=False)
+
+        ttk.Button(btns_frame, text='Expandir todo', command=expand_all).pack(side='left', padx=4)
+        ttk.Button(btns_frame, text='Colapsar todo', command=collapse_all).pack(side='left', padx=4)
+
+        # Treeview con jerarquía: padre = archivo, hijos = réplicas
+        cols = ("Nodo", "Bloque", "Estado", "Fragmento")
+        tree = ttk.Treeview(frame_tabla, columns=cols, show='tree headings')
+        tree.heading('#0', text='Archivo')
+        tree.column('#0', width=300, anchor='w')
+
+        tree.heading('Nodo', text='Nodo')
+        tree.heading('Bloque', text='Bloque')
+        tree.heading('Estado', text='Estado')
+        tree.heading('Fragmento', text='Fragmento')
+
+        tree.column('Nodo', width=140, anchor='center')
+        tree.column('Bloque', width=80, anchor='center')
+        tree.column('Estado', width=120, anchor='center')
+        tree.column('Fragmento', width=100, anchor='center')
+
+        vsb = ttk.Scrollbar(frame_tabla, orient='vertical', command=tree.yview)
+        hsb = ttk.Scrollbar(frame_tabla, orient='horizontal', command=tree.xview)
+        tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+
+        tree.pack(fill='both', expand=True, side='left')
+        vsb.pack(fill='y', side='right')
+        hsb.pack(fill='x', side='bottom')
+
+        # Agrupar réplicas por nombre de archivo
+        replicas_by_file = {}
+        free_entries = []
         for (id_nodo, id_bloque), info in block_table.items():
-            # convertir id_bloque a int si se puede, ignorar si no
             try:
                 id_bloque_num = int(id_bloque)
             except Exception:
-                # ignorar entradas inválidas
                 continue
 
-            # blindaje info como dict
             if not isinstance(info, dict):
                 info = {}
 
-            items.append((str(id_nodo), id_bloque_num, info))
+            nombre = info.get('nombre_archivo')
+            estado = info.get('estado', 'LIBRE')
+            fragmento = info.get('id_fragmento') or ''
+            entry = (str(id_nodo), id_bloque_num, estado, fragmento)
 
-        # ordenar por nodo (alfabético) y bloque (numérico)
-        items.sort(key=lambda x: (x[0], x[1]))
+            if nombre:
+                replicas_by_file.setdefault(nombre, []).append(entry)
+            else:
+                free_entries.append(entry)
 
-        for id_nodo, id_bloque, info in items:
-            estado = info.get("estado", "LIBRE")
-            nombre = info.get("nombre_archivo") if info.get("nombre_archivo") is not None else ""
-            fragmento = info.get("id_fragmento")
-            fragmento = "" if fragmento is None else fragmento
+        # Insertar grupos y réplicas como hijos
+        for nombre in sorted(replicas_by_file.keys(), key=lambda s: s.lower()):
+            parent = tree.insert('', 'end', text=nombre, values=("", "", "", ""))
+            replicas = sorted(replicas_by_file[nombre], key=lambda x: (x[0], x[1]))
+            for node, block, estado, fragmento in replicas:
+                tree.insert(parent, 'end', text='', values=(node, block, estado, fragmento))
 
-            tree.insert("", tk.END, values=(
-                id_nodo,
-                id_bloque,
-                estado,
-                nombre,
-                fragmento
-            ))
+        if free_entries:
+            p_free = tree.insert('', 'end', text='Bloques libres', values=("", "", "", ""))
+            for node, block, estado, fragmento in sorted(free_entries, key=lambda x: (x[0], x[1])):
+                tree.insert(p_free, 'end', text='', values=(node, block, estado, fragmento))
 
     # =========================
     # MAIN LOOP

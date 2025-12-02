@@ -247,9 +247,6 @@ class SAD:
                 self.P2P.envia_mensaje(info["host"], info["puerto"], mensaje)
             except Exception:
                 pass
-
-
-
     
     def lista_archivos(self):
         return self.adm_metadatos.lista_archivos()
