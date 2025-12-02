@@ -27,22 +27,7 @@ class ADMDistribucion:
             "id_nodo": nodo_objetivo,
             "id_bloque": id_bloque
         }        
-        
-
-    def colocar_fragmento(self, fragmento):
-            nodo_objetivo = self._elige_nodo_para_fragmento()
-
-            if nodo_objetivo == self.id_nodo:
-                id_bloque = self.manejador_bloque.asignar_bloques()
-                self.manejador_almacenamiento.escribe_bloque(id_bloque, fragmento["info"])
-            else:
-                id_bloque = self._almacena_bloque_remoto(nodo_objetivo, fragmento["info"])
-
-            return {
-                "id_nodo": nodo_objetivo,
-                "id_bloque": id_bloque
-            }        
-        
+            
 
     def _elige_nodo_para_fragmento(self):
         nodos_activos = self.manejador_nodo.obten_nodos_activos()
