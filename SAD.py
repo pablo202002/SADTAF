@@ -17,61 +17,60 @@ from adm_pulso import ADMPulso
 from adm_lider import ADMLider
 from P2P import P2P
 
+# Contenido de SAD.py (CORREGIDO)
+
 class SAD:
-    
+
     def __init__(self, configuracion:ADMConfiguracion):
         self.configuracion = configuracion
 
-        #info de nodo
+        # 1. Información del nodo: ¡ASIGNAR ESTO PRIMERO!
         self.id_nodo = configuracion.obten_id_nodo()
         self.host = configuracion.obten_host_nodo()
         self.puerto = configuracion.obten_puerto_nodo()
 
 
-        #confugura almacenammiento
+        # 2. Configura almacenamiento (usa la configuración, no self.id_nodo)
         tamaño_bloque = configuracion.obten_tamanio_bloque()
         ruta_SS = configuracion.obten_ruta_SS()
         tamaño_SS = configuracion.obten_tamanio_SS()
 
         bloques_totales = (tamaño_SS * 1024 * 1024) // tamaño_bloque
 
-        self.adm_bloque = ADMBloques(bloques_totales)
+        # NOTA: Asumiendo que ya aplicaste la corrección de ADMBloques para la ruta_SS
+        self.adm_bloque = ADMBloques(bloques_totales, ruta_SS)
         self.adm_almacenamiento = ADMAlmacenamiento(ruta_SS, tamaño_bloque)
         self.adm_archivo = ADMArchivos(self.adm_bloque)
 
 
-        #metadatos
+        # 3. Metadatos
         self.adm_metadatos = ADMMetadatos()
 
-        #info del cluster
+        # 4. Info del cluster: ¡Ahora self.id_nodo ya existe!
         self.adm_nodos = ADMNodos(self.id_nodo, configuracion.obten_cluster_nodos())
 
 
-        '''
-        RED P2P
-        NO MOVERLE A ESTO, JAJA PINCHE CHINGADERA
-        '''
-
+        # ... (El resto del constructor va aquí, manteniendo el orden para ADMLider, ADMPulso, etc.)
         self.P2P = P2P(self.host, self.puerto, self._maneja_mensaje)
 
         self.P2P.configura_cluster(self.id_nodo, configuracion.obten_cluster_nodos())
 
 
-        #eleccion de lider
+        # eleccion de lider
         self.adm_lider = ADMLider(id_nodo=self.id_nodo,
                                    prioridad=configuracion.obten_prioridad_eleccion(),
                                    cluster_nodos=configuracion.obten_cluster_nodos(),
                                    comunicacion=self.P2P)
-        
-        #distribucion
+
+        # distribucion
         self.adm_distribucion = ADMDistribucion(self.id_nodo,
                                                 self.adm_nodos,
                                                 self.adm_bloque,
                                                 self.adm_almacenamiento,
                                                 self.P2P)
-        
-        #pulsos
-        self.adm_pulso = ADMPulso (self.id_nodo, 
+
+        # pulsos
+        self.adm_pulso = ADMPulso (self.id_nodo,
                                      self.adm_nodos,
                                      self.P2P,
                                      configuracion.obten_intervalo_pulso(),
