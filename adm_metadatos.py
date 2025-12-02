@@ -15,11 +15,7 @@ class ADMMetadatos:
     # =========================
 
     def agrega_archivo(self, nombre, entradas):
-        """
-        entradas = [
-            { "id_fragmento": i, "id_nodo": X, "id_bloque": Y }
-        ]
-        """
+
         # ✅ CORREGIDO: usar tabla_archivos
         self.tabla_archivos[nombre] = entradas
 

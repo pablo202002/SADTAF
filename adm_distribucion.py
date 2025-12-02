@@ -161,3 +161,9 @@ class ADMDistribucion:
             return True
         except Exception:
             return False
+        
+    def _elige_nodo_para_fragmento_custom(self, nodos_disponibles):
+        if not nodos_disponibles:
+            raise Exception("No hay nodos disponibles para almacenar el fragmento")
+        import random
+        return random.choice(nodos_disponibles)

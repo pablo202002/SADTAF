@@ -103,65 +103,107 @@ class SAD:
         fragmentos = self.adm_archivo.fragmentar_archivo(info, tamaño_bloque)
         entradas_fragmentos = []
 
+        num_copias = self.configuracion.info_JSON.get("copias", {}).get("numbero_de_copias", 1)
+        nodos_activos = self.adm_nodos.obten_nodos_activos()
+
         for fragmento in fragmentos:
-            posicion = self.adm_distribucion.colocar_fragmento(fragmento)
+            nodos_usados = set()
+            for _ in range(num_copias):
+                # Elegir nodo disponible distinto
+                nodos_disponibles = [n for n in nodos_activos if n not in nodos_usados]
+                if not nodos_disponibles:
+                    break  # no quedan nodos para copias adicionales
+                id_nodo = self.adm_distribucion._elige_nodo_para_fragmento_custom(nodos_disponibles)
+                nodos_usados.add(id_nodo)
 
-            entradas_fragmentos.append({
-                "id_fragmento": fragmento["id_fragmento"],
-                "id_nodo": posicion["id_nodo"],
-                "id_bloque": posicion["id_bloque"]
-            })
+                data_bytes = fragmento["info"]
 
+                if id_nodo == self.id_nodo:
+                    id_bloque = self.adm_bloque.asigna_bloques()
+                    if id_bloque is None:
+                        raise Exception("Nodo local sin bloques libres")
+                    self.adm_almacenamiento.escribe_bloque(id_bloque, data_bytes)
+                else:
+                    nodo = self.adm_nodos.cluster_nodos[id_nodo]
+                    id_bloque = self.P2P.envia_y_recibe_json(
+                        nodo["host"],
+                        nodo["puerto"],
+                        {"tipo": "ASIGNAR_BLOQUE"}
+                    )
+                    mensaje = {
+                        "tipo": "ALMACENAR_BLOQUE",
+                        "id_bloque": id_bloque,
+                        "data": base64.b64encode(data_bytes).decode("ascii")
+                    }
+                    self.P2P.envia_mensaje(nodo["host"], nodo["puerto"], mensaje)
+
+                entradas_fragmentos.append({
+                    "id_fragmento": fragmento["id_fragmento"],
+                    "id_nodo": id_nodo,
+                    "id_bloque": id_bloque
+                })
+
+        # Guardar metadatos
         self.adm_metadatos.agrega_archivo(nombre_archivo, entradas_fragmentos)
-        # luego de agregar localmente:
+
+        # Anunciar a otros nodos
         anuncio = {
             "tipo": "ANUNCIO_METADATO",
             "nombre_archivo": nombre_archivo,
             "entradas": entradas_fragmentos
         }
 
-        # anunciar a todos los nodos del cluster (excluyendo este)
         for id_nodo, info in self.adm_nodos.cluster_nodos.items():
             if id_nodo == self.id_nodo:
                 continue
             try:
-                # usamos envia_mensaje (fire-and-forget) para no bloquear
                 self.P2P.envia_mensaje(info["host"], info["puerto"], anuncio)
             except Exception:
                 pass
 
 
-    def descargar_archivo(self, nombre_archivo, ruta_guardado):
 
+    def descargar_archivo(self, nombre_archivo, ruta_guardado):
         metadato_fragmento = self.adm_metadatos.obten_archivo(nombre_archivo)
         if not metadato_fragmento:
             raise Exception(f"No existe el archivo '{nombre_archivo}' en el sistema distribuido")
         
         fragmentos_bytes = []
 
-        for fragmento in sorted(metadato_fragmento, key=lambda x: x["id_fragmento"]):
+        # Agrupar fragmentos por id_fragmento (para varias copias)
+        from collections import defaultdict
+        fragmentos_por_id = defaultdict(list)
+        for frag in metadato_fragmento:
+            fragmentos_por_id[frag["id_fragmento"]].append(frag)
 
-            # Pedir bloque al nodo (puede venir como bytes ya decodificados o como string base64)
-            respuesta = self.adm_distribucion._lee_bloque_desde_nodo(
-                fragmento["id_nodo"],
-                fragmento["id_bloque"]
-            )
+        for id_frag, copias in sorted(fragmentos_por_id.items()):
+            data = None
 
-            if respuesta is None:
-                raise Exception(f"No se pudo leer el fragmento {fragmento['id_fragmento']} del nodo {fragmento['id_nodo']}")
+            # Intentar cada copia hasta que alguna funcione
+            for frag in copias:
+                id_nodo = frag["id_nodo"]
+                id_bloque = frag["id_bloque"]
 
-            # Normalizar: si _lee_bloque_desde_nodo devolvió bytes, úsalos directamente.
-            # Si devolvió string (base64), decodifícalo.
-            if isinstance(respuesta, bytes):
-                info = respuesta
-            else:
-                # asumir str
-                try:
-                    info = base64.b64decode(respuesta)
-                except Exception as e:
-                    raise Exception(f"Error al decodificar Base64 desde nodo {fragmento['id_nodo']}: {e}")
+                if not self.adm_nodos.esta_nodo_activo(id_nodo):
+                    continue  # nodo caído, intentar otra copia
 
-            fragmentos_bytes.append(info)
+                respuesta = self.adm_distribucion._lee_bloque_desde_nodo(id_nodo, id_bloque)
+
+                if respuesta is not None:
+                    # Normalizar bytes
+                    if isinstance(respuesta, bytes):
+                        data = respuesta
+                    else:
+                        try:
+                            data = base64.b64decode(respuesta)
+                        except Exception:
+                            continue
+                    break  # ya encontramos una copia válida
+
+            if data is None:
+                raise Exception(f"No se pudo leer el fragmento {id_frag} de ningún nodo activo")
+
+            fragmentos_bytes.append(data)
 
         # Unir todos los fragmentos
         archivo_completo = b"".join(fragmentos_bytes)
@@ -172,18 +214,27 @@ class SAD:
 
         print(f"Archivo '{nombre_archivo}' descargado correctamente en: {ruta_guardado}")
 
+
     def eliminar_archivo(self, nombre_archivo):
-        # 1. eliminar metadato local
+        # 1. eliminar metadato local y obtener todas las copias
         fragmentos = self.adm_metadatos.eliminar_archivo(nombre_archivo)
 
-        # 2. eliminar bloques físicos
-        for fragmento in fragmentos:
-            self.adm_distribucion.eliminar_bloque(
-                fragmento["id_nodo"], 
-                fragmento["id_bloque"]
-            )
+        # 2. eliminar bloques físicos de cada copia en nodos activos
+        from collections import defaultdict
+        fragmentos_por_id = defaultdict(list)
+        for frag in fragmentos:
+            fragmentos_por_id[frag["id_fragmento"]].append(frag)
 
-        # 3. 🔥 anunciar eliminación al cluster
+        for id_frag, copias in fragmentos_por_id.items():
+            for frag in copias:
+                id_nodo = frag["id_nodo"]
+                id_bloque = frag["id_bloque"]
+
+                # solo intentar si el nodo está activo
+                if self.adm_nodos.esta_nodo_activo(id_nodo):
+                    self.adm_distribucion.eliminar_bloque(id_nodo, id_bloque)
+
+        # 3. anunciar eliminación al cluster
         mensaje = {
             "tipo": "ELIMINAR_METADATO",
             "nombre_archivo": nombre_archivo
@@ -196,6 +247,7 @@ class SAD:
                 self.P2P.envia_mensaje(info["host"], info["puerto"], mensaje)
             except Exception:
                 pass
+
 
 
     
