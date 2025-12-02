@@ -39,7 +39,7 @@ class ADMPulso:
 
                 try:
                     print(f"[PULSO] Enviando pulso desde {self.id_nodo} a {id_nodo}")
-                    self.comunicacion.enviar_mensaje(
+                    self.comunicacion.envia_mensaje(
                         info_nodo["host"], 
                         info_nodo["puerto"], 
                         {
