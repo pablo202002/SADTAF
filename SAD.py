@@ -141,20 +141,25 @@ class SAD:
 
         for fragmento in sorted(metadato_fragmento, key=lambda x: x["id_fragmento"]):
 
-            # Recibir base64 del nodo remoto
-            info_b64 = self.adm_distribucion._lee_bloque_desde_nodo(
-                fragmento["id_nodo"], 
+            # Pedir bloque al nodo (puede venir como bytes ya decodificados o como string base64)
+            respuesta = self.adm_distribucion._lee_bloque_desde_nodo(
+                fragmento["id_nodo"],
                 fragmento["id_bloque"]
             )
 
-            if info_b64 is None:
+            if respuesta is None:
                 raise Exception(f"No se pudo leer el fragmento {fragmento['id_fragmento']} del nodo {fragmento['id_nodo']}")
 
-            # Decodificar base64 → bytes verdaderos
-            try:
-                info = base64.b64decode(info_b64)
-            except Exception as e:
-                raise Exception(f"Error al decodificar Base64 desde nodo {fragmento['id_nodo']}: {e}")
+            # Normalizar: si _lee_bloque_desde_nodo devolvió bytes, úsalos directamente.
+            # Si devolvió string (base64), decodifícalo.
+            if isinstance(respuesta, bytes):
+                info = respuesta
+            else:
+                # asumir str
+                try:
+                    info = base64.b64decode(respuesta)
+                except Exception as e:
+                    raise Exception(f"Error al decodificar Base64 desde nodo {fragmento['id_nodo']}: {e}")
 
             fragmentos_bytes.append(info)
 
