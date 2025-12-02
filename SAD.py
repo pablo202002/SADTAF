@@ -173,10 +173,30 @@ class SAD:
         print(f"Archivo '{nombre_archivo}' descargado correctamente en: {ruta_guardado}")
 
     def eliminar_archivo(self, nombre_archivo):
+        # 1. eliminar metadato local
         fragmentos = self.adm_metadatos.eliminar_archivo(nombre_archivo)
 
+        # 2. eliminar bloques físicos
         for fragmento in fragmentos:
-            self.adm_distribucion.eliminar_bloque(fragmento["id_nodo"], fragmento["id_bloque"])
+            self.adm_distribucion.eliminar_bloque(
+                fragmento["id_nodo"], 
+                fragmento["id_bloque"]
+            )
+
+        # 3. 🔥 anunciar eliminación al cluster
+        mensaje = {
+            "tipo": "ELIMINAR_METADATO",
+            "nombre_archivo": nombre_archivo
+        }
+
+        for id_nodo, info in self.adm_nodos.cluster_nodos.items():
+            if id_nodo == self.id_nodo:
+                continue
+            try:
+                self.P2P.envia_mensaje(info["host"], info["puerto"], mensaje)
+            except Exception:
+                pass
+
 
     
     def lista_archivos(self):
@@ -226,6 +246,12 @@ class SAD:
                 mensaje["entradas"]
             )
             return {"ok": True}
+        
+        elif tipo == "ELIMINAR_METADATO":
+            nombre = mensaje["nombre_archivo"]
+            self.adm_metadatos.eliminar_archivo(nombre)
+            return {"ok": True}
+
 
 
         elif tipo == "SOLICITAR_TABLA_BLOQUES":
