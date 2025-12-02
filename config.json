@@ -2,13 +2,13 @@
     "nodo": {
         "id": "nodoA",
         "host": "192.168.100.142",
-        "puerto": 5000
+        "puerto": 9000
     },
 
     
     "red":{
         "host": "192.168.100.142",
-        "puerto": 5000
+        "puerto": 9000
     },
 
 
@@ -16,8 +16,8 @@
         "intervalo_pulso": 2,
         "tiempo_espera_pulso": 6,
         "nodos": {
-        "nodoA": { "host": "192.168.100.142", "puerto": 5000, "prioridad": 1 },
-        "nodoB": { "host": "192.168.100.148", "puerto": 5001, "prioridad": 1 }
+        "nodoA": { "host": "192.168.100.142", "puerto": 9000, "prioridad": 1 },
+        "nodoB": { "host": "192.168.100.148", "puerto": 9001, "prioridad": 1 }
         }
     },
 

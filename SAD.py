@@ -3,6 +3,7 @@ Clase MAIN
 '''
 
 import os
+import base64
 
 from adm_almacenamiento import ADMAlmacenamiento
 from adm_configuracion import ADMConfiguracion
@@ -112,30 +113,55 @@ class SAD:
             })
 
         self.adm_metadatos.agrega_archivo(nombre_archivo, entradas_fragmentos)
+        # luego de agregar localmente:
+        anuncio = {
+            "tipo": "ANUNCIO_METADATO",
+            "nombre_archivo": nombre_archivo,
+            "entradas": entradas_fragmentos
+        }
+
+        # anunciar a todos los nodos del cluster (excluyendo este)
+        for id_nodo, info in self.adm_nodos.cluster_nodos.items():
+            if id_nodo == self.id_nodo:
+                continue
+            try:
+                # usamos envia_mensaje (fire-and-forget) para no bloquear
+                self.P2P.envia_mensaje(info["host"], info["puerto"], anuncio)
+            except Exception:
+                pass
 
 
     def descargar_archivo(self, nombre_archivo, ruta_guardado):
-#chtumadren=daniel
+
         metadato_fragmento = self.adm_metadatos.obten_archivo(nombre_archivo)
         if not metadato_fragmento:
             raise Exception(f"No existe el archivo '{nombre_archivo}' en el sistema distribuido")
         
         fragmentos_bytes = []
 
-        # Leer cada fragmento desde el nodo correspondiente
         for fragmento in sorted(metadato_fragmento, key=lambda x: x["id_fragmento"]):
-            info = self.adm_distribucion._lee_bloque_desde_nodo(
+
+            # Recibir base64 del nodo remoto
+            info_b64 = self.adm_distribucion._lee_bloque_desde_nodo(
                 fragmento["id_nodo"], 
                 fragmento["id_bloque"]
             )
-            if info is None:
+
+            if info_b64 is None:
                 raise Exception(f"No se pudo leer el fragmento {fragmento['id_fragmento']} del nodo {fragmento['id_nodo']}")
+
+            # Decodificar base64 → bytes verdaderos
+            try:
+                info = base64.b64decode(info_b64)
+            except Exception as e:
+                raise Exception(f"Error al decodificar Base64 desde nodo {fragmento['id_nodo']}: {e}")
+
             fragmentos_bytes.append(info)
 
-        # Reensamblar los fragmentos en bytes completos
+        # Unir todos los fragmentos
         archivo_completo = b"".join(fragmentos_bytes)
 
-        # Guardar en disco con la ruta proporcionada
+        # Guardar archivo reensamblado
         with open(ruta_guardado, "wb") as f:
             f.write(archivo_completo)
 
@@ -161,13 +187,26 @@ class SAD:
         tipo_mensaje = mensaje.get("tipo")
 
         if tipo_mensaje == "PULSO":
+            print(f"[PULSO RECIBIDO] Nodo {mensaje['id_nodo']} se conectó con {self.id_nodo}")
             self.adm_nodos.pulso_recibido(mensaje["id_nodo"])
 
         elif tipo_mensaje == "ALMACENAR_BLOQUE":
-            return self.adm_almacenamiento.lee_bloque(mensaje["id_bloque"])
+            data_b64 = mensaje["data"]
+            data_bytes = base64.b64decode(data_b64)
+            self.adm_almacenamiento.escribe_bloque(mensaje["id_bloque"], data_bytes)
+            return {"ok": True}
 
         elif tipo_mensaje == "LEER_BLOQUE":
-            return self.adm_almacenamiento.lee_bloque(mensaje["id_bloque"])
+            id_bloque = mensaje["id_bloque"]
+            print(f"[ALMACENAMIENTO] Leyendo bloque {id_bloque}")
+
+            data_bytes = self.adm_almacenamiento.lee_bloque(id_bloque)
+
+            if data_bytes:
+                # Convertir bytes → base64 → string JSON seguro
+                return base64.b64encode(data_bytes).decode("ascii")
+
+            return None
         
         elif tipo_mensaje == "ELIMINAR_BLOQUE":
             self.adm_bloque.liberar_bloque(mensaje["id_bloque"])
@@ -183,6 +222,12 @@ class SAD:
         elif tipo_mensaje == "SOLICITAR_TABLA_BLOQUES":
             bloques_libres = self.adm_bloque.obten_lista_bloques_libres()
             return bloques_libres
+        elif tipo_mensaje == "ANUNCIO_METADATO":
+            nombre = mensaje["nombre_archivo"]
+            entradas = mensaje["entradas"]
+            # agrega al metadato local (evita duplicados)
+            self.adm_metadatos.agrega_archivo(nombre, entradas)
+            return {"ok": True}
 
 
     def obten_tabla_bloques_completa_cluster(self):
@@ -196,7 +241,7 @@ class SAD:
             if llave not in tabla_completa:
                 tabla_completa[llave] = {
                     "estado": "LIBRE",
-                    "nombre_archivo": None,
+                    "nombre_archivo": None, 
                     "id_fragmento": None
                 }
 

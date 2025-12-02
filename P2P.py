@@ -42,7 +42,12 @@ class P2P:
     def _maneja_conexion(self, conx):
         try:
             mensaje = recibe_json(conx)
-            self.mensajero(mensaje)
+            respuesta = self.mensajero(mensaje)
+
+            # SI HAY RESPUESTA → se envía
+            if respuesta is not None:
+                envia_json(conx, respuesta)
+
         finally:
             conx.close()
 
@@ -78,13 +83,16 @@ class P2P:
 
         return True
     
-    def envia_recibe_json(self, host, puerto, mensaje, tam_buffer=4096, timeout=5):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(timeout)
-            s.connect((host, puerto))
-            envia_json(s, mensaje)
-            respuesta = recibe_json(s, tam_buffer)
-            return respuesta
+    def envia_y_recibe_json(self, host, puerto, mensaje, tam_buffer=4096, timeout=5):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(timeout)
+                s.connect((host, puerto))
+                envia_json(s, mensaje)
+                respuesta = recibe_json(s, tam_buffer)
+                return respuesta
+        except (ConnectionRefusedError, socket.timeout, OSError):
+            return None
 
     
 

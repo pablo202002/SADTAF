@@ -38,6 +38,7 @@ class ADMPulso:
                     continue
 
                 try:
+                    print(f"[PULSO] Enviando pulso desde {self.id_nodo} a {id_nodo}")
                     self.comunicacion.enviar_mensaje(
                         info_nodo["host"], 
                         info_nodo["puerto"], 
@@ -45,6 +46,7 @@ class ADMPulso:
                             "tipo": "PULSO",
                             "id_nodo": self.id_nodo
                         }
+
                     )
                 except Exception:
                     pass

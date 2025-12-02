@@ -69,11 +69,11 @@ class ADMLider:
 
     def _nodos_prioritarios(self):
         orden = []
-
         for id_nodo, info in self.cluster_nodos.items():
-            if id_nodo != self.id_nodo and info["prioridad"] > self.prioridad:
+            if id_nodo == self.id_nodo:
+                continue
+            if info.get("prioridad", 0) > self.prioridad:
                 orden.append(id_nodo)
-
         return orden
     
     def es_lider(self):

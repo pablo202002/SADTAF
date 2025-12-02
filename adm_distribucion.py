@@ -3,7 +3,7 @@ DEcide donde se alamacena cada fragmento, administra lectura/escritura de bloque
 '''
 
 import random
-
+import base64
 class ADMDistribucion:
 
     def __init__(self, id_node, manejador_nodo, manejador_bloque, manejador_almacenamiento, comunicacion):
@@ -15,7 +15,7 @@ class ADMDistribucion:
 
 
     def colocar_fragmento(self, fragmento):
-        nodo_objetivo = self._elige_nodo_para_fragmento()
+        nodo_objetivo = self._elige_nodos_para_fragmentos()
 
         if nodo_objetivo == self.id_nodo:
             id_bloque = self.manejador_bloque.asignar_bloques()
@@ -27,7 +27,22 @@ class ADMDistribucion:
             "id_nodo": nodo_objetivo,
             "id_bloque": id_bloque
         }        
-    
+        
+
+    def colocar_fragmento(self, fragmento):
+            nodo_objetivo = self._elige_nodo_para_fragmento()
+
+            if nodo_objetivo == self.id_nodo:
+                id_bloque = self.manejador_bloque.asignar_bloques()
+                self.manejador_almacenamiento.escribe_bloque(id_bloque, fragmento["info"])
+            else:
+                id_bloque = self._almacena_bloque_remoto(nodo_objetivo, fragmento["info"])
+
+            return {
+                "id_nodo": nodo_objetivo,
+                "id_bloque": id_bloque
+            }        
+        
 
     def _elige_nodo_para_fragmento(self):
         nodos_activos = self.manejador_nodo.obten_nodos_activos()
@@ -36,8 +51,6 @@ class ADMDistribucion:
             raise Exception("No hay nodos activos para alamacenar")
         
         return random.choice(nodos_activos)
-    
-
 
 
     def _almacena_bloque_remoto(self, id_nodo, info):
@@ -49,29 +62,55 @@ class ADMDistribucion:
             "info": info.decode("latin1")
         }
  
-        self.comunicacion.enviar(id_nodo, mensaje)
+        info = self.comunicacion.cluster_nodos[id_nodo]
+        self.comunicacion.envia_mensaje(info["host"], info["puerto"], mensaje)
 
         return id_bloque
 
 
     def _lee_bloque_desde_nodo(self, id_nodo, id_bloque):
-        if id_nodo == self.id_nodo:
-            info = self.manejador_almacenamiento.lee_bloque(id_bloque)
-            return info
-        
+
+        # Obtener datos del nodo desde el manejador de nodos
+        info_nodo = self.manejador_nodo.cluster_nodos.get(id_nodo)
+
+        if not info_nodo:
+            print(f"[DISTRIBUCION] Nodo {id_nodo} no encontrado")
+            return None
 
         mensaje = {
             "tipo": "LEER_BLOQUE",
             "id_bloque": id_bloque
         }
 
-        respuesta = self.comunicacion.envia_recibe_json(
-            self.manejador_nodo.cluster_nodos[id_nodo]["host"],
-            self.manejador_nodo.cluster_nodos[id_nodo]["puerto"],
-            mensaje
-        )
+        try:
+            # Usar tu sistema de comunicación P2P real
+            respuesta = self.comunicacion.envia_y_recibe_json(
+                info_nodo["host"],
+                info_nodo["puerto"],
+                mensaje
+            )
 
-        return respuesta
+            if not respuesta:
+                print(f"[DISTRIBUCION] Nodo {id_nodo} respondió vacío para bloque {id_bloque}")
+                return None
+
+            # Validar que sea cadena base64
+            if not isinstance(respuesta, str):
+                print(f"[DISTRIBUCION] Nodo {id_nodo} devolvió algo que no es string Base64")
+                return None
+
+            import base64
+            try:
+                base64.b64decode(respuesta)
+            except Exception:
+                print(f"[DISTRIBUCION] Respuesta NO válida Base64 desde nodo {id_nodo}")
+                return None
+
+            return respuesta
+
+        except Exception as e:
+            print(f"[DISTRIBUCION] Error consultando nodo {id_nodo}: {e}")
+            return None
 
 
     def eliminar_bloque(self, id_nodo, id_bloque):
@@ -85,4 +124,8 @@ class ADMDistribucion:
             "id_bloque": id_bloque 
         }
 
-        self.comunicacion.enviar(id_nodo, mensaje)
+        info = self.comunicacion.cluster_nodos[id_nodo]
+        self.comunicacion.envia_mensaje(info["host"], info["puerto"], mensaje)
+        
+        print(f"[DISTRIBUCION] No se pudo eliminar bloque remoto {id_bloque} en nodo {id_nodo}")
+        return False

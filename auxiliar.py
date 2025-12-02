@@ -22,15 +22,36 @@ def obten_IP_local():
     return socket.gethostbyname(hostname)
 
 
-def envia_json(conexion_socket, data):
-    mensaje = json.dumps(data).encode("utf-8")
-    conexion_socket.sendall(mensaje)
+def envia_json(conexion, mensaje_dict):
+    """
+    Envía un JSON por socket, terminando siempre con un '\n'
+    para evitar mensajes incompletos.
+    """
+    data = (json.dumps(mensaje_dict) + "\n").encode("utf-8")
+    conexion.sendall(data)
 
 
-def recibe_json(conexion_socket, tam_buffer=4096):
-    data = conexion_socket.recv(tam_buffer)
-    
-    return json.loads(data.decode(("utf-8")))
+
+def recibe_json(conexion, tam_buffer=4096):
+    """
+    Recibe un JSON desde un socket.
+    Lee hasta encontrar '\n'.
+    """
+    buffer = ""
+
+    while True:
+        chunk = conexion.recv(tam_buffer)
+        if not chunk:
+            break
+
+        buffer += chunk.decode("utf-8")
+
+        # Si ya llegó una línea completa
+        if "\n" in buffer:
+            linea = buffer.split("\n")[0]  # solo la primera
+            return json.loads(linea)
+
+    raise Exception("No llegó JSON completo. Falta '\\n'")
 
 
 #Funciones auxiliares para achivos y data
