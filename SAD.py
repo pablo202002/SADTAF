@@ -224,6 +224,7 @@ class SAD:
 
 
         elif tipo == "SOLICITAR_TABLA_BLOQUES":
+            # Construir tabla completa del nodo local: todos los bloques [0 .. total-1]
             tabla = {}
 
             total = self.adm_bloque.total_bloques
@@ -240,13 +241,15 @@ class SAD:
                     }
                 else:
                     info = self.adm_metadatos.tabla_bloques.get(clave)
-                    tabla[id_bloque] = info if info else {
+                    tabla[id_bloque] = info.copy() if info else {
                         "estado": "OCUPADO",
-                        "nombre_archivo": "?",
-                        "id_fragmento": "?"
+                        "nombre_archivo": None,
+                        "id_fragmento": None
                     }
 
+            # Devolver dict con keys numéricas
             return tabla
+
 
 
         # ✅ ESTE ES EL FIX CLAVE
@@ -258,25 +261,30 @@ class SAD:
         tabla_completa = {}
 
         # =========================
-        # 1. BLOQUES LOCALES OCUPADOS (metadatos)
+        # 1. BLOQUES LOCALES (TODOS)
         # =========================
-        for (id_nodo, id_bloque), info in self.adm_metadatos.tabla_bloques.items():
-            tabla_completa[(id_nodo, id_bloque)] = info.copy()
+        total_local = self.adm_bloque.total_bloques
+        libres_locales = set(self.adm_bloque.obten_lista_bloques_libres())
 
-        # =========================
-        # 2. BLOQUES LOCALES LIBRES
-        # =========================
-        for id_bloque in self.adm_bloque.obten_lista_bloques_libres():
+        for id_bloque in range(total_local):
             clave = (self.id_nodo, id_bloque)
-            if clave not in tabla_completa:
+
+            if id_bloque in libres_locales:
                 tabla_completa[clave] = {
                     "estado": "LIBRE",
                     "nombre_archivo": None,
                     "id_fragmento": None
                 }
+            else:
+                info = self.adm_metadatos.tabla_bloques.get(clave)
+                tabla_completa[clave] = info.copy() if info else {
+                    "estado": "OCUPADO",
+                    "nombre_archivo": None,
+                    "id_fragmento": None
+                }
 
         # =========================
-        # 3. BLOQUES DE NODOS REMOTOS
+        # 2. BLOQUES DE NODOS REMOTOS (TODOS)
         # =========================
         for id_nodo, info_nodo in self.adm_nodos.cluster_nodos.items():
             if id_nodo == self.id_nodo:
@@ -291,11 +299,17 @@ class SAD:
                     mensaje
                 )
 
-                # ✅ respuesta DEBE ser dict {id_bloque: info}
+                # ✅ respuesta debe ser dict { id_bloque (int o str): info }
                 if not isinstance(respuesta, dict):
                     continue
 
-                for id_bloque, info in respuesta.items():
+                for id_bloque_raw, info in respuesta.items():
+                    # 🔒 blindaje fuerte
+                    try:
+                        id_bloque = int(id_bloque_raw)
+                    except (ValueError, TypeError):
+                        continue
+
                     clave = (id_nodo, id_bloque)
                     tabla_completa[clave] = {
                         "estado": info.get("estado", "LIBRE"),
@@ -307,6 +321,7 @@ class SAD:
                 continue
 
         return tabla_completa
+
 
 
 

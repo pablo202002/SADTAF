@@ -25,14 +25,14 @@ class GUI:
 
     def _build_ui(self):
         frame = tk.Frame(self.root, padx=10, pady=10)
-        frame.pack()
+        frame.pack(fill="both", expand=False)
 
         # Lista de archivos
         self.lista_archivos = tk.Listbox(frame, width=40)
-        self.lista_archivos.pack()
+        self.lista_archivos.pack(fill="x")
 
         refresh_btn = tk.Button(frame, text="Actualizar archivos", command=self.recarga_archivos)
-        refresh_btn.pack(pady=5)
+        refresh_btn.pack(pady=5, fill="x")
 
         # Botones
         tk.Button(frame, text="1) Subir archivo", command=self.upload_file).pack(fill="x")
@@ -124,75 +124,109 @@ class GUI:
         # Crear ventana nueva
         window = tk.Toplevel(self.root)
         window.title(f"Atributos del archivo: {filename}")
+        window.geometry("420x300")
 
-        tree = ttk.Treeview(window, columns=("Fragmento", "Nodo", "Bloque"), show="headings")
+        # Frame para tree + scroll
+        frame = tk.Frame(window, padx=5, pady=5)
+        frame.pack(fill="both", expand=True)
+
+        tree = ttk.Treeview(frame, columns=("Fragmento", "Nodo", "Bloque"), show="headings")
         tree.heading("Fragmento", text="Fragmento")
         tree.heading("Nodo", text="Nodo")
         tree.heading("Bloque", text="Bloque")
         tree.column("Fragmento", width=100, anchor="center")
-        tree.column("Nodo", width=100, anchor="center")
-        tree.column("Bloque", width=100, anchor="center")
-        tree.pack(fill="both", expand=True)
+        tree.column("Nodo", width=120, anchor="center")
+        tree.column("Bloque", width=120, anchor="center")
+
+        # Scroll vertical
+        scrollbar = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+
+        # layout
+        tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
 
         # Insertar datos
         for a in attrs:
-            tree.insert("", "end", values=(a["id_fragmento"], a["id_nodo"], a["id_bloque"]))
-
-        # Scroll vertical
-        scrollbar = ttk.Scrollbar(window, orient="vertical", command=tree.yview)
-        tree.configure(yscroll=scrollbar.set)
-        scrollbar.pack(side="right", fill="y")
-
+            # blindaje defensivo
+            frag = a.get("id_fragmento", "-")
+            nodo = a.get("id_nodo", "-")
+            bloque = a.get("id_bloque", "-")
+            tree.insert("", "end", values=(frag, nodo, bloque))
 
     def show_block_table(self):
         try:
             block_table = self.SAD.obten_tabla_bloques_completa_cluster()
         except Exception as e:
-            tk.messagebox.showerror("Error", str(e))
+            messagebox.showerror("Error", str(e))
             return
-        
+
         # Crear ventana nueva
         ventana = Toplevel(self.root)
         ventana.title("Tabla de Bloques")
-        ventana.geometry("600x400")
+        ventana.geometry("700x450")
 
-        # Crear Treeview
-        tree = ttk.Treeview(ventana)
-        tree.pack(expand=True, fill="both")
+        # Frame contenedor para tree + scrollbar
+        frame_tabla = tk.Frame(ventana, padx=6, pady=6)
+        frame_tabla.pack(fill="both", expand=True)
 
-        # Definir columnas
-        tree["columns"] = ("Nodo", "Bloque", "Estado", "Archivo", "Fragmento")
-        tree.heading("#0", text="")  # columna fantasma
-        tree.column("#0", width=0, stretch=False)
+        # Crear Treeview con columnas definidas
+        cols = ("Nodo", "Bloque", "Estado", "Archivo", "Fragmento")
+        tree = ttk.Treeview(frame_tabla, columns=cols, show="headings")
 
-        for col in tree["columns"]:
-            tree.heading(col, text=col)
-            tree.column(col, width=100, anchor="center")
+        # configurar columnas y encabezados
+        tree.heading("Nodo", text="Nodo")
+        tree.heading("Bloque", text="Bloque")
+        tree.heading("Estado", text="Estado")
+        tree.heading("Archivo", text="Archivo")
+        tree.heading("Fragmento", text="Fragmento")
 
-        # Insertar datos
-        for (id_nodo, id_bloque), info in sorted(
-                block_table.items(),
-                key=lambda x: (str(x[0][0]), str(x[0][1]))
-            ):
+        tree.column("Nodo", width=120, anchor="center")
+        tree.column("Bloque", width=80, anchor="center")
+        tree.column("Estado", width=100, anchor="center")
+        tree.column("Archivo", width=220, anchor="w")
+        tree.column("Fragmento", width=80, anchor="center")
 
-            # salto defensivo
-            if not isinstance(id_bloque, int):
+        # Scrollbar vertical
+        scrollbar = ttk.Scrollbar(frame_tabla, orient="vertical", command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+
+        # layout: tree a la izquierda, scrollbar a la derecha
+        tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # Normalizar e insertar datos ordenados
+        items = []
+        for (id_nodo, id_bloque), info in block_table.items():
+            # convertir id_bloque a int si se puede, ignorar si no
+            try:
+                id_bloque_num = int(id_bloque)
+            except Exception:
+                # ignorar entradas inválidas
                 continue
 
+            # blindaje info como dict
+            if not isinstance(info, dict):
+                info = {}
+
+            items.append((str(id_nodo), id_bloque_num, info))
+
+        # ordenar por nodo (alfabético) y bloque (numérico)
+        items.sort(key=lambda x: (x[0], x[1]))
+
+        for id_nodo, id_bloque, info in items:
+            estado = info.get("estado", "LIBRE")
+            nombre = info.get("nombre_archivo") if info.get("nombre_archivo") is not None else ""
+            fragmento = info.get("id_fragmento")
+            fragmento = "" if fragmento is None else fragmento
 
             tree.insert("", tk.END, values=(
                 id_nodo,
                 id_bloque,
-                info.get("estado", "LIBRE"),
-                info.get("nombre_archivo", ""),
-                info.get("id_fragmento", "")
+                estado,
+                nombre,
+                fragmento
             ))
-
-        # Agregar scroll vertical
-        scrollbar = ttk.Scrollbar(ventana, orient="vertical", command=tree.yview)
-        tree.configure(yscrollcommand=scrollbar.set)           
-        scrollbar.pack(side="right", fill="y")
-
 
     # =========================
     # MAIN LOOP
